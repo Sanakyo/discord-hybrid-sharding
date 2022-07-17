@@ -141,7 +141,7 @@ declare module 'discord-hybrid-sharding' {
         public keepAlive: keepAliveOptions;
         public queue: Queue;
         public recluster?: ReClusterManager;
-        public heartbeat?: HeartbeatManager;
+        public heartbeat?: HeartBeatManager;
         public broadcast(message: any): Promise<Cluster[]>;
         public broadcastEval(script: string): Promise<any[]>;
         public broadcastEval(script: string, options?: evalOptions): Promise<any>;
