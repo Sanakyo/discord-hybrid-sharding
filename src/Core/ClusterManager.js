@@ -33,6 +33,7 @@ class ClusterManager extends EventEmitter {
      * @param {number} [options.restarts.max] Maximum amount of restarts a cluster can have in the interval
      * @param {object} [options.queue] Control the Spawn Queue
      * @param {boolean} [options.queue.auto=true] Whether the spawn queue be automatically managed
+     * @param {Object} [options.spawnOptions] Options to pass to the spawn,respawn method
      */
     constructor(file, options = {}) {
         super();
@@ -55,13 +56,17 @@ class ClusterManager extends EventEmitter {
                 },
                 clusterData: {},
                 clusterOptions: {},
+                spawnOptions: {
+                    delay: 7000,
+                    timeout: -1,
+                },
             },
             options,
         );
 
         if (options.keepAlive)
             throw new Error(
-                'keepAlive is not supported anymore on and above v1.6.0. Import it as plugin ("HeartBeatManager"), therefore check the libs readme',
+                'keepAlive is not supported anymore on and above v1.6.0. Import it as plugin ("HeartbeatManager"), therefore check the libs readme',
             );
 
         /**
@@ -227,6 +232,8 @@ class ClusterManager extends EventEmitter {
         this._debug(`[START] Cluster Manager has been initialized`);
 
         this.promise = new PromiseHandler();
+
+        this.spawnOptions = options.spawnOptions;
     }
     /**
      * Spawns multiple internal shards.
@@ -237,7 +244,7 @@ class ClusterManager extends EventEmitter {
      * before resolving. (-1 or Infinity for no wait)
      * @returns {Promise<Collection<number, Cluster>>}
      */
-    async spawn({ amount = this.totalShards, delay = 7000, timeout = -1 } = {}) {
+    async spawn({ amount = this.totalShards, delay, timeout } = this.spawnOptions) {
         if (delay < 7000) {
             process.emitWarning(
                 `Spawn Delay (delay: ${delay}) is smaller than 7s, this can cause global rate limits on /gateway/bot`,
@@ -371,7 +378,7 @@ class ClusterManager extends EventEmitter {
                 // @todo Support Array of Shards
                 if (options.shard.length === 0) throw new RangeError('ARRAY_MUST_CONTAIN_ONE SHARD_ID');
             }
-            options.cluster = [...this.clusters.values()].find(c => c.shardList.includes(options.shard));
+            options.cluster = [...this.clusters.values()].find(c => c.shardList.includes(options.shard))?.id;
         }
         return this._performOnClusters('eval', [script], options.cluster, options.timeout);
     }
@@ -402,7 +409,11 @@ class ClusterManager extends EventEmitter {
         if (this.clusters.size === 0) return Promise.reject(new Error('CLUSTERING_NO_CLUSTERS'));
 
         if (typeof cluster === 'number') {
-            if (this.clusters.has(cluster)) return this.clusters.get(cluster)[method](...args, undefined, timeout);
+            if (this.clusters.has(cluster))
+                return this.clusters
+                    .get(cluster)
+                    [method](...args, undefined, timeout)
+                    .then(e => [e]);
             return Promise.reject(new Error('CLUSTERING_CLUSTER_NOT_FOUND FOR ClusterId: ' + cluster));
         }
         let clusters = [...this.clusters.values()];
